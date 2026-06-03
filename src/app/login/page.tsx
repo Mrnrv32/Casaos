@@ -28,7 +28,8 @@ export default function LoginPage() {
           options: { data: { full_name: name } },
         });
         if (error) throw error;
-        router.push("/onboarding");
+        router.push("/board");
+        router.refresh();
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
