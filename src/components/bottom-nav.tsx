@@ -4,24 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutGrid,
-  ListTodo,
   CalendarDays,
   ChefHat,
   Wallet,
   FolderKanban,
-  Settings2,
   ShoppingCart,
 } from "lucide-react";
 
 const TABS = [
-  { href: "/board",    icon: LayoutGrid,   label: "Board"    },
-  { href: "/tareas",   icon: ListTodo,     label: "Tareas"   },
+  { href: "/board",    icon: LayoutGrid,   label: "Inicio"   },
   { href: "/calendar", icon: CalendarDays, label: "Agenda"   },
   { href: "/recetas",  icon: ChefHat,      label: "Recetas"  },
   { href: "/compras",  icon: ShoppingCart, label: "Compras"  },
-  { href: "/finances", icon: Wallet,       label: "Dinero"   },
+  { href: "/finances", icon: Wallet,       label: "Finanzas" },
   { href: "/projects", icon: FolderKanban, label: "Proyectos"},
-  { href: "/settings", icon: Settings2,    label: "Ajustes"  },
 ] as const;
 
 export function BottomNav() {
@@ -43,7 +39,7 @@ export function BottomNav() {
               className="flex flex-1 flex-col items-center justify-center gap-[3px]"
             >
               <Icon
-                className={`w-[22px] h-[22px] transition-colors ${
+                className={`w-6 h-6 transition-colors ${
                   active ? "text-amber-400" : "text-white/30"
                 }`}
                 strokeWidth={active ? 2.25 : 1.75}

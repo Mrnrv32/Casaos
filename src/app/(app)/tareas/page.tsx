@@ -1,5 +1,5 @@
-import { TareasClient } from "./tareas-client";
+import { redirect } from "next/navigation";
 
 export default function TareasPage() {
-  return <TareasClient />;
+  redirect("/board");
 }
