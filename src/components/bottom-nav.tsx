@@ -18,7 +18,7 @@ const TABS = [
   { href: "/calendar", icon: CalendarDays, label: "Agenda"   },
   { href: "/recetas",  icon: ChefHat,      label: "Recetas"  },
   { href: "/finances", icon: Wallet,       label: "Dinero"   },
-  { href: "/projects", icon: FolderKanban, label: "Planes"   },
+  { href: "/projects", icon: FolderKanban, label: "Proyectos"   },
   { href: "/settings", icon: Settings2,    label: "Ajustes"  },
 ] as const;
 
