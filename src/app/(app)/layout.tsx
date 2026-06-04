@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { HomeProvider } from "@/providers/home-provider";
 import { BottomNav } from "@/components/bottom-nav";
+import { NavigationProgress } from "@/components/nav-progress";
 
 export default async function AppLayout({
   children,
@@ -35,6 +36,8 @@ export default async function AppLayout({
     .single();
 
   return (
+    <>
+    <NavigationProgress />
     <HomeProvider
       homeId={profile.home_id}
       userId={user.id}
@@ -51,5 +54,6 @@ export default async function AppLayout({
         <BottomNav />
       </div>
     </HomeProvider>
+    </>
   );
 }

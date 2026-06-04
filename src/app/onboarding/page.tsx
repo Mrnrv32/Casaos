@@ -3,20 +3,21 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Home, Copy, Check, ArrowRight } from "lucide-react";
+import { Home, Copy, Check, ArrowRight, Users, Link as LinkIcon } from "lucide-react";
 
-type Step = "create" | "invite";
+type Step = "choose" | "create" | "invite" | "join";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [step, setStep] = useState<Step>("create");
+  const [step, setStep] = useState<Step>("choose");
   const [homeName, setHomeName] = useState("");
   const [homeId, setHomeId] = useState<string | null>(null);
   const [partnerEmail, setPartnerEmail] = useState("");
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [inviteInput, setInviteInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,9 +26,7 @@ export default function OnboardingPage() {
     setError(null);
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc("create_home", {
-        p_name: homeName.trim(),
-      });
+      const { data, error } = await supabase.rpc("create_home", { p_name: homeName.trim() });
       if (error) throw error;
       setHomeId(data);
       setStep("invite");
@@ -58,6 +57,16 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleJoin = () => {
+    const raw = inviteInput.trim();
+    if (!raw) return;
+    const token = raw.includes("/invite/")
+      ? raw.split("/invite/").pop()?.trim()
+      : raw;
+    if (!token) return;
+    router.push(`/invite/${token}`);
+  };
+
   const handleCopy = async () => {
     if (!inviteUrl) return;
     await navigator.clipboard.writeText(inviteUrl);
@@ -70,31 +79,120 @@ export default function OnboardingPage() {
     router.refresh();
   };
 
-  return (
-    <div className="min-h-dvh flex flex-col items-center justify-center bg-[#0f0f0f] px-6">
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-400/10 mb-4">
-          <Home className="w-6 h-6 text-amber-400" />
+  // ── Choose ────────────────────────────────────────────────────────────────
+  if (step === "choose") {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-[#0f0f0f] px-6">
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-400/10 mb-4">
+            <Home className="w-6 h-6 text-amber-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Configura tu hogar</h1>
+          <p className="mt-1 text-sm text-white/40">¿Cómo quieres empezar?</p>
         </div>
-        <h1 className="text-2xl font-bold text-white">
-          {step === "create" ? "Crea tu hogar" : "Invita a tu pareja"}
-        </h1>
-        <p className="mt-1 text-sm text-white/40">
-          {step === "create"
-            ? "Dale un nombre a su espacio compartido"
-            : "Comparte el enlace para que se una"}
-        </p>
-      </div>
 
-      {/* Card */}
-      <div className="w-full max-w-sm rounded-2xl border border-white/[0.07] bg-white/[0.03] p-6">
-        {step === "create" ? (
+        <div className="w-full max-w-sm flex flex-col gap-3">
+          <button
+            onClick={() => setStep("create")}
+            className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 text-left active:bg-white/[0.06] transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400/10 flex items-center justify-center flex-shrink-0">
+                <Home className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Crear mi hogar</p>
+                <p className="text-xs text-white/40 mt-0.5">Soy el primero en registrarme</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-white/20 ml-auto flex-shrink-0" />
+            </div>
+          </button>
+
+          <button
+            onClick={() => setStep("join")}
+            className="w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 text-left active:bg-white/[0.06] transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-400/10 flex items-center justify-center flex-shrink-0">
+                <Users className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Ya tengo hogar</p>
+                <p className="text-xs text-white/40 mt-0.5">Me invitaron, tengo un enlace</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-white/20 ml-auto flex-shrink-0" />
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Join ──────────────────────────────────────────────────────────────────
+  if (step === "join") {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-[#0f0f0f] px-6">
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-400/10 mb-4">
+            <LinkIcon className="w-6 h-6 text-blue-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Unirme al hogar</h1>
+          <p className="mt-1 text-sm text-white/40">Pega el enlace que te compartieron</p>
+        </div>
+
+        <div className="w-full max-w-sm rounded-2xl border border-white/[0.07] bg-white/[0.03] p-6 flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-white/50 font-medium">Enlace de invitación</label>
+            <input
+              type="text"
+              value={inviteInput}
+              onChange={(e) => setInviteInput(e.target.value)}
+              placeholder="https://… o solo el código"
+              autoFocus
+              className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-blue-400/40 text-sm"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-400/80 bg-red-400/10 rounded-xl px-4 py-2">{error}</p>
+          )}
+
+          <button
+            disabled={!inviteInput.trim()}
+            onClick={handleJoin}
+            className="flex items-center justify-center gap-2 w-full rounded-xl bg-blue-500 py-3 font-semibold text-white disabled:opacity-40 active:scale-[0.98] transition-transform"
+          >
+            Unirme al hogar <ArrowRight className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStep("choose")}
+            className="text-sm text-white/35 hover:text-white/55 text-center transition-colors py-1"
+          >
+            Volver
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Create home ───────────────────────────────────────────────────────────
+  if (step === "create") {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-[#0f0f0f] px-6">
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-400/10 mb-4">
+            <Home className="w-6 h-6 text-amber-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Crea tu hogar</h1>
+          <p className="mt-1 text-sm text-white/40">Dale un nombre a su espacio compartido</p>
+        </div>
+
+        <div className="w-full max-w-sm rounded-2xl border border-white/[0.07] bg-white/[0.03] p-6">
           <form onSubmit={handleCreateHome} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-white/50 font-medium">
-                Nombre del hogar
-              </label>
+              <label className="text-xs text-white/50 font-medium">Nombre del hogar</label>
               <input
                 type="text"
                 value={homeName}
@@ -107,9 +205,7 @@ export default function OnboardingPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-400/80 bg-red-400/10 rounded-xl px-4 py-2">
-                {error}
-              </p>
+              <p className="text-sm text-red-400/80 bg-red-400/10 rounded-xl px-4 py-2">{error}</p>
             )}
 
             <button
@@ -117,17 +213,35 @@ export default function OnboardingPage() {
               disabled={loading || !homeName.trim()}
               className="flex items-center justify-center gap-2 w-full rounded-xl bg-amber-400 py-3 font-semibold text-black disabled:opacity-40 active:scale-[0.98] transition-transform"
             >
-              {loading ? (
-                "Creando…"
-              ) : (
-                <>
-                  Continuar <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+              {loading ? "Creando…" : <> Continuar <ArrowRight className="w-4 h-4" /> </>}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStep("choose")}
+              className="text-sm text-white/35 hover:text-white/55 text-center transition-colors py-1"
+            >
+              Volver
             </button>
           </form>
-        ) : inviteUrl ? (
-          /* Invite link shown */
+        </div>
+      </div>
+    );
+  }
+
+  // ── Invite partner ────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-[#0f0f0f] px-6">
+      <div className="mb-8 text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-400/10 mb-4">
+          <Home className="w-6 h-6 text-amber-400" />
+        </div>
+        <h1 className="text-2xl font-bold text-white">Invita a tu pareja</h1>
+        <p className="mt-1 text-sm text-white/40">Comparte el enlace para que se una</p>
+      </div>
+
+      <div className="w-full max-w-sm rounded-2xl border border-white/[0.07] bg-white/[0.03] p-6">
+        {inviteUrl ? (
           <div className="flex flex-col gap-4">
             <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-4">
               <p className="text-xs text-white/40 mb-1.5">Enlace de invitación</p>
@@ -138,17 +252,7 @@ export default function OnboardingPage() {
               onClick={handleCopy}
               className="flex items-center justify-center gap-2 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 text-sm font-medium text-white active:scale-[0.98] transition-all"
             >
-              {copied ? (
-                <>
-                  <Check className="w-4 h-4 text-green-400" />
-                  ¡Copiado!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  Copiar enlace
-                </>
-              )}
+              {copied ? <><Check className="w-4 h-4 text-green-400" /> ¡Copiado!</> : <><Copy className="w-4 h-4" /> Copiar enlace</>}
             </button>
 
             <button
@@ -159,12 +263,9 @@ export default function OnboardingPage() {
             </button>
           </div>
         ) : (
-          /* Partner email form */
           <form onSubmit={handleCreateInvite} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-white/50 font-medium">
-                Correo de tu pareja
-              </label>
+              <label className="text-xs text-white/50 font-medium">Correo de tu pareja</label>
               <input
                 type="email"
                 value={partnerEmail}
@@ -177,9 +278,7 @@ export default function OnboardingPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-400/80 bg-red-400/10 rounded-xl px-4 py-2">
-                {error}
-              </p>
+              <p className="text-sm text-red-400/80 bg-red-400/10 rounded-xl px-4 py-2">{error}</p>
             )}
 
             <button
@@ -199,20 +298,6 @@ export default function OnboardingPage() {
             </button>
           </form>
         )}
-      </div>
-
-      {/* Step dots */}
-      <div className="flex gap-2 mt-6">
-        <span
-          className={`w-2 h-2 rounded-full transition-colors ${
-            step === "create" ? "bg-amber-400" : "bg-white/20"
-          }`}
-        />
-        <span
-          className={`w-2 h-2 rounded-full transition-colors ${
-            step === "invite" ? "bg-amber-400" : "bg-white/20"
-          }`}
-        />
       </div>
     </div>
   );
