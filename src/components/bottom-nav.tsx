@@ -10,6 +10,7 @@ import {
   Wallet,
   FolderKanban,
   Settings2,
+  ShoppingCart,
 } from "lucide-react";
 
 const TABS = [
@@ -17,8 +18,9 @@ const TABS = [
   { href: "/tareas",   icon: ListTodo,     label: "Tareas"   },
   { href: "/calendar", icon: CalendarDays, label: "Agenda"   },
   { href: "/recetas",  icon: ChefHat,      label: "Recetas"  },
+  { href: "/compras",  icon: ShoppingCart, label: "Compras"  },
   { href: "/finances", icon: Wallet,       label: "Dinero"   },
-  { href: "/projects", icon: FolderKanban, label: "Proyectos"   },
+  { href: "/projects", icon: FolderKanban, label: "Proyectos"},
   { href: "/settings", icon: Settings2,    label: "Ajustes"  },
 ] as const;
 

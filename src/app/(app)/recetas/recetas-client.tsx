@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Pin, Trash2, ChefHat, BookOpen } from "lucide-react";
+import { Plus, X, Pin, Trash2, ChefHat, BookOpen, ShoppingCart, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useHome } from "@/providers/home-provider";
@@ -26,6 +26,14 @@ function parseIngredients(raw: Json | null): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((i): i is string => typeof i === "string");
 }
+
+type UpdateData = {
+  id: string;
+  title: string;
+  category: string | null;
+  ingredients: string[] | null;
+  description: string | null;
+};
 
 export function RecetasClient() {
   const { homeId, userId } = useHome();
@@ -84,6 +92,52 @@ export function RecetasClient() {
     },
     onSuccess: () => toast.success("Agregado al tablero"),
     onError: () => toast.error("No se pudo agregar al tablero"),
+  });
+
+  const addToShoppingList = useMutation({
+    mutationFn: async (recipe: Recipe) => {
+      const ingredients = parseIngredients(recipe.ingredients);
+      if (ingredients.length === 0) throw new Error("no-ingredients");
+      const rows = ingredients.map((ing) => ({
+        item_name: ing,
+        category: "Abarrotes",
+        home_id: homeId,
+        added_by: userId,
+        is_bought: false,
+      }));
+      const { error } = await supabase.from("pantry").insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: (_, recipe) => {
+      const count = parseIngredients(recipe.ingredients).length;
+      toast.success(`${count} ingrediente${count !== 1 ? "s" : ""} en tu lista`);
+    },
+    onError: (err) => {
+      if ((err as Error).message === "no-ingredients")
+        toast.error("Esta receta no tiene ingredientes");
+      else toast.error("No se pudo agregar a compras");
+    },
+  });
+
+  const updateRecipe = useMutation({
+    mutationFn: async (data: UpdateData) => {
+      const { error } = await supabase
+        .from("recipes")
+        .update({
+          title: data.title,
+          category: data.category,
+          ingredients: data.ingredients,
+          description: data.description,
+        })
+        .eq("id", data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setSelected(null);
+      queryClient.invalidateQueries({ queryKey: ["recipes", homeId] });
+      toast.success("Receta actualizada");
+    },
+    onError: () => toast.error("No se pudo actualizar"),
   });
 
   const tabs: Array<"Todas" | Category> = ["Todas", ...CATEGORIES];
@@ -193,8 +247,12 @@ export function RecetasClient() {
           onClose={() => setSelected(null)}
           onDelete={() => deleteRecipe.mutate(selected.id)}
           onPin={() => pinToBoard.mutate(selected)}
+          onAddToList={() => addToShoppingList.mutate(selected)}
+          onUpdate={(data) => updateRecipe.mutate(data)}
           deleting={deleteRecipe.isPending}
           pinning={pinToBoard.isPending}
+          addingToList={addToShoppingList.isPending}
+          updating={updateRecipe.isPending}
         />
       )}
     </div>
@@ -373,19 +431,32 @@ function RecipeDetailSheet({
   onClose,
   onDelete,
   onPin,
+  onAddToList,
+  onUpdate,
   deleting,
   pinning,
+  addingToList,
+  updating,
 }: {
   recipe: Recipe;
   onClose: () => void;
   onDelete: () => void;
   onPin: () => void;
+  onAddToList: () => void;
+  onUpdate: (data: UpdateData) => void;
   deleting: boolean;
   pinning: boolean;
+  addingToList: boolean;
+  updating: boolean;
 }) {
   const ingredients = parseIngredients(recipe.ingredients);
   const [cookMode, setCookMode] = useState(false);
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(recipe.title);
+  const [editCategory, setEditCategory] = useState<Category | "">((recipe.category as Category) || "");
+  const [editIngredients, setEditIngredients] = useState(ingredients.join("\n"));
+  const [editDescription, setEditDescription] = useState(recipe.description || "");
   const cat = recipe.category as Category | null;
 
   const toggleCheck = (i: number) =>
@@ -394,6 +465,28 @@ function RecipeDetailSheet({
       next.has(i) ? next.delete(i) : next.add(i);
       return next;
     });
+
+  const handleSave = () => {
+    const newIngredients = editIngredients
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    onUpdate({
+      id: recipe.id,
+      title: editTitle.trim(),
+      category: editCategory || null,
+      ingredients: newIngredients.length > 0 ? newIngredients : null,
+      description: editDescription.trim() || null,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditTitle(recipe.title);
+    setEditCategory((recipe.category as Category) || "");
+    setEditIngredients(ingredients.join("\n"));
+    setEditDescription(recipe.description || "");
+  };
 
   return (
     <div
@@ -409,7 +502,7 @@ function RecipeDetailSheet({
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-white leading-tight">{recipe.title}</h2>
-              {cat && CATEGORY_BADGE[cat] && (
+              {!isEditing && cat && CATEGORY_BADGE[cat] && (
                 <span
                   className={cn(
                     "inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full border",
@@ -420,15 +513,25 @@ function RecipeDetailSheet({
                 </span>
               )}
             </div>
-            <button
-              onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center text-white/30 active:text-white/60 flex-shrink-0 mt-0.5"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+              {!isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="w-7 h-7 flex items-center justify-center text-white/30 active:text-amber-400 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={isEditing ? handleCancelEdit : onClose}
+                className="w-7 h-7 flex items-center justify-center text-white/30 active:text-white/60"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          {ingredients.length > 0 && (
+          {!isEditing && ingredients.length > 0 && (
             <button
               onClick={() => {
                 setCookMode((v) => !v);
@@ -451,93 +554,182 @@ function RecipeDetailSheet({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-          {ingredients.length > 0 && (
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">
-                Ingredientes
-              </p>
-              <div className="space-y-1.5">
-                {ingredients.map((ing, i) => (
-                  <button
-                    key={i}
-                    onClick={() => cookMode && toggleCheck(i)}
-                    disabled={!cookMode}
-                    className={cn(
-                      "w-full text-left flex items-center gap-2.5 py-0.5 transition-opacity",
-                      cookMode && "active:opacity-60",
-                      checked.has(i) && "opacity-40"
-                    )}
-                  >
-                    {cookMode ? (
-                      <span
-                        className={cn(
-                          "w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors",
-                          checked.has(i)
-                            ? "border-emerald-400/40 bg-emerald-400/20"
-                            : "border-white/[0.15]"
-                        )}
-                      >
-                        {checked.has(i) && (
-                          <span className="block w-2 h-2 rounded-sm bg-emerald-400" />
-                        )}
-                      </span>
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/20 flex-shrink-0 mt-0.5" />
-                    )}
-                    <span
+          {isEditing ? (
+            <>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">Nombre</p>
+                <input
+                  autoFocus
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full bg-[#0f0f0f] rounded-lg px-3 py-2.5 text-sm text-white outline-none border border-white/[0.06] focus:border-white/[0.14] transition-colors"
+                />
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">Categoría</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATEGORIES.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setEditCategory(editCategory === c ? "" : c)}
                       className={cn(
-                        "text-sm text-white/70",
-                        checked.has(i) && "line-through text-white/30"
+                        "text-[11px] px-2.5 py-1 rounded-full border transition-colors",
+                        editCategory === c
+                          ? "bg-amber-400/20 border-amber-400/40 text-amber-400"
+                          : "bg-transparent border-white/[0.10] text-white/40"
                       )}
                     >
-                      {ing}
-                    </span>
-                  </button>
-                ))}
+                      {c}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {cookMode && (
-                <p className="text-[10px] text-white/20 mt-2">
-                  {checked.size}/{ingredients.length} listos
+
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">
+                  Ingredientes — uno por línea
                 </p>
+                <textarea
+                  value={editIngredients}
+                  onChange={(e) => setEditIngredients(e.target.value)}
+                  rows={5}
+                  className="w-full bg-[#0f0f0f] rounded-lg px-3 py-2.5 text-sm text-white outline-none border border-white/[0.06] focus:border-white/[0.14] resize-none leading-relaxed transition-colors"
+                />
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">
+                  Instrucciones
+                </p>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                  className="w-full bg-[#0f0f0f] rounded-lg px-3 py-2.5 text-sm text-white outline-none border border-white/[0.06] focus:border-white/[0.14] resize-none leading-relaxed transition-colors"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              {ingredients.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">
+                    Ingredientes
+                  </p>
+                  <div className="space-y-1.5">
+                    {ingredients.map((ing, i) => (
+                      <button
+                        key={i}
+                        onClick={() => cookMode && toggleCheck(i)}
+                        disabled={!cookMode}
+                        className={cn(
+                          "w-full text-left flex items-center gap-2.5 py-0.5 transition-opacity",
+                          cookMode && "active:opacity-60",
+                          checked.has(i) && "opacity-40"
+                        )}
+                      >
+                        {cookMode ? (
+                          <span
+                            className={cn(
+                              "w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors",
+                              checked.has(i)
+                                ? "border-emerald-400/40 bg-emerald-400/20"
+                                : "border-white/[0.15]"
+                            )}
+                          >
+                            {checked.has(i) && (
+                              <span className="block w-2 h-2 rounded-sm bg-emerald-400" />
+                            )}
+                          </span>
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white/20 flex-shrink-0 mt-0.5" />
+                        )}
+                        <span
+                          className={cn(
+                            "text-sm text-white/70",
+                            checked.has(i) && "line-through text-white/30"
+                          )}
+                        >
+                          {ing}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {cookMode && (
+                    <p className="text-[10px] text-white/20 mt-2">
+                      {checked.size}/{ingredients.length} listos
+                    </p>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-          {recipe.description && (
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">
-                Instrucciones
-              </p>
-              <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">
-                {recipe.description}
-              </p>
-            </div>
-          )}
+              {recipe.description && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">
+                    Instrucciones
+                  </p>
+                  <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">
+                    {recipe.description}
+                  </p>
+                </div>
+              )}
 
-          {ingredients.length === 0 && !recipe.description && (
-            <p className="text-sm text-white/25 text-center py-6">Sin detalles</p>
+              {ingredients.length === 0 && !recipe.description && (
+                <p className="text-sm text-white/25 text-center py-6">Sin detalles</p>
+              )}
+            </>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-4 pb-6 pt-3 flex items-center justify-between border-t border-white/[0.06] flex-shrink-0">
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className="flex items-center gap-1.5 text-xs text-red-400/60 active:text-red-400 disabled:opacity-40 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            {deleting ? "Eliminando…" : "Eliminar"}
-          </button>
-          <button
-            onClick={onPin}
-            disabled={pinning}
-            className="flex items-center gap-1.5 text-xs bg-white/[0.07] border border-white/[0.10] text-white/60 px-3 py-1.5 rounded-lg active:bg-amber-400/15 active:text-amber-400 active:border-amber-400/30 disabled:opacity-40 transition-colors"
-          >
-            <Pin className="w-3.5 h-3.5" />
-            {pinning ? "Agregando…" : "Cocinar hoy"}
-          </button>
-        </div>
+        {isEditing ? (
+          <div className="px-4 pb-6 pt-3 flex items-center justify-end gap-2 border-t border-white/[0.06] flex-shrink-0">
+            <button
+              onClick={handleCancelEdit}
+              className="text-xs text-white/40 px-3 py-1.5 active:text-white/60"
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={!editTitle.trim() || updating}
+              onClick={handleSave}
+              className="text-xs bg-amber-400 text-black font-semibold px-4 py-1.5 rounded-lg disabled:opacity-40 active:opacity-80"
+            >
+              {updating ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
+        ) : (
+          <div className="px-4 pb-6 pt-3 flex items-center justify-between border-t border-white/[0.06] flex-shrink-0">
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 text-xs text-red-400/60 active:text-red-400 disabled:opacity-40 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {deleting ? "Eliminando…" : "Eliminar"}
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onAddToList}
+                disabled={addingToList}
+                className="flex items-center gap-1.5 text-xs bg-white/[0.07] border border-white/[0.10] text-white/60 px-3 py-1.5 rounded-lg active:bg-emerald-400/15 active:text-emerald-400 active:border-emerald-400/30 disabled:opacity-40 transition-colors"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                {addingToList ? "Agregando…" : "A compras"}
+              </button>
+              <button
+                onClick={onPin}
+                disabled={pinning}
+                className="flex items-center gap-1.5 text-xs bg-white/[0.07] border border-white/[0.10] text-white/60 px-3 py-1.5 rounded-lg active:bg-amber-400/15 active:text-amber-400 active:border-amber-400/30 disabled:opacity-40 transition-colors"
+              >
+                <Pin className="w-3.5 h-3.5" />
+                {pinning ? "Agregando…" : "Cocinar hoy"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
