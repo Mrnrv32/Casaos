@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Pin, Trash2, FolderKanban, Check } from "lucide-react";
+import { Plus, X, Pin, Trash2, FolderKanban, Check, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useHome } from "@/providers/home-provider";
@@ -48,8 +48,8 @@ export function ProjectsClient() {
   const supabase = createClient();
   const queryClient = useQueryClient();
 
-  const [showAdd, setShowAdd]     = useState(false);
-  const [selected, setSelected]   = useState<Project | null>(null);
+  const [showAdd, setShowAdd]   = useState(false);
+  const [selected, setSelected] = useState<Project | null>(null);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects", homeId],
@@ -86,6 +86,20 @@ export function ProjectsClient() {
         .eq("home_id", homeId);
       if (error) throw error;
       return data as SavingsGoal[];
+    },
+  });
+
+  // Which project IDs are currently pinned to the board
+  const { data: pinnedIds = [] } = useQuery({
+    queryKey: ["board_pinned_project_ids", homeId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("board_cards")
+        .select("source_id")
+        .eq("home_id", homeId)
+        .eq("source", "project")
+        .neq("status", "dismissed");
+      return (data ?? []).map((d) => d.source_id).filter(Boolean) as string[];
     },
   });
 
@@ -129,8 +143,11 @@ export function ProjectsClient() {
       });
       if (error) throw error;
     },
-    onSuccess: () => toast.success("Agregado al tablero"),
-    onError:   () => toast.error("No se pudo agregar al tablero"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["board_pinned_project_ids", homeId] });
+      toast.success("Agregado al tablero");
+    },
+    onError: () => toast.error("No se pudo agregar al tablero"),
   });
 
   const grouped = SECTION_ORDER.reduce<Record<Status, Project[]>>(
@@ -200,6 +217,7 @@ export function ProjectsClient() {
                         key={project.id}
                         project={project}
                         milestones={milestones.filter((m) => m.project_id === project.id)}
+                        isPinned={pinnedIds.includes(project.id)}
                         onClick={() => setSelected(project)}
                       />
                     ))}
@@ -234,6 +252,7 @@ export function ProjectsClient() {
           onPin={() => pinToBoard.mutate(selected)}
           deleting={deleteProject.isPending}
           pinning={pinToBoard.isPending}
+          isPinned={pinnedIds.includes(selected.id)}
           onMilestoneChange={() => queryClient.invalidateQueries({ queryKey: ["milestones", homeId] })}
         />
       )}
@@ -246,10 +265,12 @@ export function ProjectsClient() {
 function ProjectCard({
   project,
   milestones,
+  isPinned,
   onClick,
 }: {
   project: Project;
   milestones: ProjectMilestone[];
+  isPinned: boolean;
   onClick: () => void;
 }) {
   const status   = (project.status ?? "planning") as Status;
@@ -266,10 +287,10 @@ function ProjectCard({
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-sm text-white/90 font-medium truncate">{project.title}</p>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             {total > 0 && (
               <p className="text-xs text-white/30">
-                {done}/{total} hito{total !== 1 ? "s" : ""}
+                {done}/{total} tarea{total !== 1 ? "s" : ""}
               </p>
             )}
             {hasBudget && (
@@ -278,7 +299,13 @@ function ProjectCard({
               </p>
             )}
             {total === 0 && !hasBudget && (
-              <p className="text-xs text-white/20">Sin hitos</p>
+              <p className="text-xs text-white/20">Sin tareas</p>
+            )}
+            {isPinned && (
+              <span className="flex items-center gap-0.5 text-[10px] text-amber-400/70">
+                <Pin className="w-2.5 h-2.5" />
+                En tablero
+              </span>
             )}
           </div>
           {hasBudget && spent > 0 && (
@@ -320,10 +347,10 @@ function AddProjectSheet({
   onSaved: () => void;
 }) {
   const supabase = createClient();
-  const [title, setTitle]           = useState("");
-  const [status, setStatus]         = useState<Status>("planning");
+  const [title, setTitle]             = useState("");
+  const [status, setStatus]           = useState<Status>("planning");
   const [description, setDescription] = useState("");
-  const [budgetText, setBudgetText] = useState("");
+  const [budgetText, setBudgetText]   = useState("");
 
   const addProject = useMutation({
     mutationFn: async () => {
@@ -350,10 +377,7 @@ function AddProjectSheet({
       >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-white">Nuevo proyecto</h2>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center text-white/30 active:text-white/60"
-          >
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center text-white/30 active:text-white/60">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -376,9 +400,7 @@ function AddProjectSheet({
                 onClick={() => setStatus(s)}
                 className={cn(
                   "text-[11px] px-2.5 py-1 rounded-full border transition-colors",
-                  status === s
-                    ? STATUS_BADGE[s]
-                    : "bg-transparent border-white/[0.10] text-white/40"
+                  status === s ? STATUS_BADGE[s] : "bg-transparent border-white/[0.10] text-white/40"
                 )}
               >
                 {STATUS_LABEL[s]}
@@ -388,9 +410,7 @@ function AddProjectSheet({
         </div>
 
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">
-            Descripción (opcional)
-          </p>
+          <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">Descripción (opcional)</p>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -401,9 +421,7 @@ function AddProjectSheet({
         </div>
 
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">
-            Presupuesto total (opcional)
-          </p>
+          <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">Presupuesto total (opcional)</p>
           <input
             type="number"
             inputMode="decimal"
@@ -415,10 +433,7 @@ function AddProjectSheet({
         </div>
 
         <div className="flex justify-end gap-2 pt-1 border-t border-white/[0.06]">
-          <button
-            onClick={onClose}
-            className="text-xs text-white/40 px-3 py-1.5 active:text-white/60"
-          >
+          <button onClick={onClose} className="text-xs text-white/40 px-3 py-1.5 active:text-white/60">
             Cancelar
           </button>
           <button
@@ -441,6 +456,7 @@ function ProjectDetailCard({
   milestones,
   savingsGoal,
   homeId,
+  isPinned,
   onClose,
   onDelete,
   onPin,
@@ -452,6 +468,7 @@ function ProjectDetailCard({
   milestones: ProjectMilestone[];
   savingsGoal: SavingsGoal | null;
   homeId: string;
+  isPinned: boolean;
   onClose: () => void;
   onDelete: () => void;
   onPin: () => void;
@@ -462,23 +479,20 @@ function ProjectDetailCard({
   const supabase = createClient();
   const queryClient = useQueryClient();
 
-  const [newTitle, setNewTitle]   = useState("");
-  const [newCost, setNewCost]     = useState("");
-  const [adding, setAdding]       = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newCost, setNewCost]   = useState("");
+  const [adding, setAdding]     = useState(false);
 
-  const status   = (project.status ?? "planning") as Status;
+  const status    = (project.status ?? "planning") as Status;
   const hasBudget = project.total_budget != null && project.total_budget > 0;
-  const spent    = milestones.reduce((s, m) => s + (m.cost ?? 0), 0);
-  const donePct  = milestones.length > 0
+  const spent     = milestones.reduce((s, m) => s + (m.cost ?? 0), 0);
+  const donePct   = milestones.length > 0
     ? Math.round((milestones.filter((m) => m.is_done).length / milestones.length) * 100)
     : 0;
 
   const toggleMilestone = useMutation({
     mutationFn: async ({ id, is_done }: { id: string; is_done: boolean }) => {
-      const { error } = await supabase
-        .from("project_milestones")
-        .update({ is_done })
-        .eq("id", id);
+      const { error } = await supabase.from("project_milestones").update({ is_done }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: onMilestoneChange,
@@ -492,6 +506,15 @@ function ProjectDetailCard({
     },
     onSuccess: onMilestoneChange,
     onError: () => toast.error("No se pudo eliminar"),
+  });
+
+  const editMilestone = useMutation({
+    mutationFn: async ({ id, title, cost }: { id: string; title: string; cost: number | null }) => {
+      const { error } = await supabase.from("project_milestones").update({ title, cost }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: onMilestoneChange,
+    onError: () => toast.error("No se pudo editar"),
   });
 
   const addMilestone = useMutation({
@@ -512,7 +535,7 @@ function ProjectDetailCard({
       setAdding(false);
       onMilestoneChange();
     },
-    onError: () => toast.error("No se pudo agregar el hito"),
+    onError: () => toast.error("No se pudo agregar la tarea"),
   });
 
   const savingsPct = savingsGoal
@@ -533,14 +556,17 @@ function ProjectDetailCard({
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-white leading-tight">{project.title}</h2>
-              <span
-                className={cn(
-                  "inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full border",
-                  STATUS_BADGE[status]
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span className={cn("text-[10px] px-2 py-0.5 rounded-full border", STATUS_BADGE[status])}>
+                  {STATUS_LABEL[status]}
+                </span>
+                {isPinned && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-amber-400/70">
+                    <Pin className="w-2.5 h-2.5" />
+                    En tablero
+                  </span>
                 )}
-              >
-                {STATUS_LABEL[status]}
-              </span>
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -550,23 +576,15 @@ function ProjectDetailCard({
             </button>
           </div>
 
-          {/* Budget bar */}
           {hasBudget && (
             <div className="mt-3">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] text-white/30">
-                  Gastado: {fmtCurrency(spent)}
-                </p>
-                <p className="text-[10px] text-white/30">
-                  Presupuesto: {fmtCurrency(project.total_budget!)}
-                </p>
+                <p className="text-[10px] text-white/30">Gastado: {fmtCurrency(spent)}</p>
+                <p className="text-[10px] text-white/30">Presupuesto: {fmtCurrency(project.total_budget!)}</p>
               </div>
               <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
                 <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    spent >= project.total_budget! ? "bg-red-400" : "bg-amber-400/70"
-                  )}
+                  className={cn("h-full rounded-full transition-all", spent >= project.total_budget! ? "bg-red-400" : "bg-amber-400/70")}
                   style={{ width: `${Math.min(100, (spent / project.total_budget!) * 100)}%` }}
                 />
               </div>
@@ -578,21 +596,18 @@ function ProjectDetailCard({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-          {/* Description */}
           {project.description && (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-white/25 mb-1.5">Descripción</p>
-              <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">
-                {project.description}
-              </p>
+              <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">{project.description}</p>
             </div>
           )}
 
-          {/* Milestones */}
+          {/* Milestones (now called Tareas) */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] uppercase tracking-widest text-white/25">
-                Hitos {milestones.length > 0 && `· ${milestones.filter((m) => m.is_done).length}/${milestones.length}`}
+                Tareas {milestones.length > 0 && `· ${milestones.filter((m) => m.is_done).length}/${milestones.length}`}
               </p>
               {milestones.length > 0 && (
                 <p className="text-[10px] text-white/20">{donePct}%</p>
@@ -600,7 +615,7 @@ function ProjectDetailCard({
             </div>
 
             {milestones.length === 0 && !adding && (
-              <p className="text-xs text-white/20 py-2">Sin hitos todavía</p>
+              <p className="text-xs text-white/20 py-2">Sin tareas todavía</p>
             )}
 
             <div className="space-y-1">
@@ -610,11 +625,11 @@ function ProjectDetailCard({
                   milestone={m}
                   onToggle={(v) => toggleMilestone.mutate({ id: m.id, is_done: v })}
                   onDelete={() => deleteMilestone.mutate(m.id)}
+                  onEdit={(title, cost) => editMilestone.mutate({ id: m.id, title, cost })}
                 />
               ))}
             </div>
 
-            {/* Inline add row */}
             {adding ? (
               <div className="mt-2 flex items-center gap-1.5">
                 <input
@@ -626,7 +641,7 @@ function ProjectDetailCard({
                     if (e.key === "Enter" && newTitle.trim()) addMilestone.mutate();
                     if (e.key === "Escape") { setAdding(false); setNewTitle(""); setNewCost(""); }
                   }}
-                  placeholder="Nombre del hito…"
+                  placeholder="Nombre de la tarea…"
                   className="flex-1 bg-[#0f0f0f] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-white/20 outline-none border border-white/[0.08] focus:border-white/[0.16] transition-colors"
                 />
                 <input
@@ -657,28 +672,22 @@ function ProjectDetailCard({
                 className="mt-2 flex items-center gap-1 text-xs text-white/25 active:text-white/50 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Agregar hito
+                Agregar tarea
               </button>
             )}
           </div>
 
-          {/* Savings goal */}
           {savingsGoal && (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-white/25 mb-2">Meta de ahorro</p>
               <div className="bg-[#161616] rounded-xl border border-white/[0.06] px-3 py-2.5">
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="text-xs text-white/80 font-medium truncate">{savingsGoal.title}</p>
-                  <p className="text-xs text-white/40 flex-shrink-0 ml-2">
-                    {savingsPct}%
-                  </p>
+                  <p className="text-xs text-white/40 flex-shrink-0 ml-2">{savingsPct}%</p>
                 </div>
                 <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
                   <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      savingsPct >= 100 ? "bg-emerald-400" : "bg-amber-400/60"
-                    )}
+                    className={cn("h-full rounded-full transition-all", savingsPct >= 100 ? "bg-emerald-400" : "bg-amber-400/60")}
                     style={{ width: `${savingsPct}%` }}
                   />
                 </div>
@@ -702,11 +711,16 @@ function ProjectDetailCard({
           </button>
           <button
             onClick={onPin}
-            disabled={pinning}
-            className="flex items-center gap-1.5 text-xs bg-white/[0.07] border border-white/[0.10] text-white/60 px-3 py-1.5 rounded-lg active:bg-amber-400/15 active:text-amber-400 active:border-amber-400/30 disabled:opacity-40 transition-colors"
+            disabled={pinning || isPinned}
+            className={cn(
+              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors",
+              isPinned
+                ? "bg-amber-400/10 border-amber-400/30 text-amber-400/70 cursor-default"
+                : "bg-white/[0.07] border-white/[0.10] text-white/60 active:bg-amber-400/15 active:text-amber-400 active:border-amber-400/30 disabled:opacity-40"
+            )}
           >
             <Pin className="w-3.5 h-3.5" />
-            {pinning ? "Agregando…" : "Ver en tablero"}
+            {pinning ? "Agregando…" : isPinned ? "En tablero" : "Ver en tablero"}
           </button>
         </div>
       </div>
@@ -720,12 +734,64 @@ function MilestoneRow({
   milestone,
   onToggle,
   onDelete,
+  onEdit,
 }: {
   milestone: ProjectMilestone;
   onToggle: (v: boolean) => void;
   onDelete: () => void;
+  onEdit: (title: string, cost: number | null) => void;
 }) {
   const done = milestone.is_done ?? false;
+  const [editing, setEditing]       = useState(false);
+  const [editTitle, setEditTitle]   = useState(milestone.title);
+  const [editCost, setEditCost]     = useState(milestone.cost?.toString() ?? "");
+
+  const saveEdit = () => {
+    const trimmed = editTitle.trim();
+    if (!trimmed) return;
+    const cost = editCost.trim() ? parseFloat(editCost.replace(/[^0-9.]/g, "")) : null;
+    onEdit(trimmed, cost && !isNaN(cost) ? cost : null);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1.5 py-0.5">
+        <input
+          autoFocus
+          type="text"
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") saveEdit();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="flex-1 bg-[#0f0f0f] rounded-lg px-2.5 py-1.5 text-xs text-white outline-none border border-white/[0.12] focus:border-amber-400/30 transition-colors"
+        />
+        <input
+          type="number"
+          inputMode="decimal"
+          value={editCost}
+          onChange={(e) => setEditCost(e.target.value)}
+          placeholder="$"
+          className="w-16 bg-[#0f0f0f] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-white/20 outline-none border border-white/[0.08] focus:border-white/[0.16] transition-colors"
+        />
+        <button
+          onClick={saveEdit}
+          disabled={!editTitle.trim()}
+          className="w-7 h-7 flex items-center justify-center bg-amber-400/20 text-amber-400 rounded-lg disabled:opacity-40 active:bg-amber-400/30"
+        >
+          <Check className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => setEditing(false)}
+          className="w-7 h-7 flex items-center justify-center text-white/25 active:text-white/50"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2 py-0.5 group">
@@ -733,26 +799,23 @@ function MilestoneRow({
         onClick={() => onToggle(!done)}
         className={cn(
           "w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors",
-          done
-            ? "border-emerald-400/40 bg-emerald-400/20"
-            : "border-white/[0.18] active:border-white/30"
+          done ? "border-emerald-400/40 bg-emerald-400/20" : "border-white/[0.18] active:border-white/30"
         )}
       >
         {done && <span className="block w-2 h-2 rounded-sm bg-emerald-400" />}
       </button>
-      <span
-        className={cn(
-          "flex-1 text-sm transition-colors",
-          done ? "line-through text-white/25" : "text-white/70"
-        )}
-      >
+      <span className={cn("flex-1 text-sm transition-colors", done ? "line-through text-white/25" : "text-white/70")}>
         {milestone.title}
       </span>
       {milestone.cost != null && milestone.cost > 0 && (
-        <span className="text-[10px] text-white/25 flex-shrink-0">
-          {fmtCurrency(milestone.cost)}
-        </span>
+        <span className="text-[10px] text-white/25 flex-shrink-0">{fmtCurrency(milestone.cost)}</span>
       )}
+      <button
+        onClick={() => setEditing(true)}
+        className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-white/20 active:text-amber-400 transition-all flex-shrink-0"
+      >
+        <Pencil className="w-3 h-3" />
+      </button>
       <button
         onClick={onDelete}
         className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-white/20 active:text-red-400 transition-all flex-shrink-0"
