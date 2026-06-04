@@ -1,8 +1,5 @@
+import { BoardClient } from "./board-client";
+
 export default function BoardPage() {
-  return (
-    <div className="flex flex-col h-full px-4 pt-6 pb-4">
-      <h1 className="text-xl font-bold text-white mb-1">Tablero</h1>
-      <p className="text-sm text-white/40">Tu resumen del hogar</p>
-    </div>
-  );
+  return <BoardClient />;
 }
