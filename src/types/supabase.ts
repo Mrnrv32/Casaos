@@ -29,9 +29,9 @@ export type Database = {
         Relationships: [{ foreignKeyName: "board_cards_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] }, { foreignKeyName: "board_cards_home_id_fkey"; columns: ["home_id"]; isOneToOne: false; referencedRelation: "homes"; referencedColumns: ["id"] }]
       }
       calendar_events: {
-        Row: { created_at: string | null; created_by: string | null; description: string | null; end_at: string | null; home_id: string; id: string; is_all_day: boolean | null; moment_id: string | null; start_at: string; tag: string | null; title: string; updated_at: string | null }
-        Insert: { created_at?: string | null; created_by?: string | null; description?: string | null; end_at?: string | null; home_id: string; id?: string; is_all_day?: boolean | null; moment_id?: string | null; start_at: string; tag?: string | null; title: string; updated_at?: string | null }
-        Update: { created_at?: string | null; created_by?: string | null; description?: string | null; end_at?: string | null; home_id?: string; id?: string; is_all_day?: boolean | null; moment_id?: string | null; start_at?: string; tag?: string | null; title?: string; updated_at?: string | null }
+        Row: { created_at: string | null; created_by: string | null; description: string | null; end_at: string | null; home_id: string; id: string; is_all_day: boolean | null; link_url: string | null; moment_id: string | null; start_at: string; tag: string | null; title: string; updated_at: string | null }
+        Insert: { created_at?: string | null; created_by?: string | null; description?: string | null; end_at?: string | null; home_id: string; id?: string; is_all_day?: boolean | null; link_url?: string | null; moment_id?: string | null; start_at: string; tag?: string | null; title: string; updated_at?: string | null }
+        Update: { created_at?: string | null; created_by?: string | null; description?: string | null; end_at?: string | null; home_id?: string; id?: string; is_all_day?: boolean | null; link_url?: string | null; moment_id?: string | null; start_at?: string; tag?: string | null; title?: string; updated_at?: string | null }
         Relationships: [{ foreignKeyName: "calendar_events_home_id_fkey"; columns: ["home_id"]; isOneToOne: false; referencedRelation: "homes"; referencedColumns: ["id"] }, { foreignKeyName: "calendar_events_moment_id_fkey"; columns: ["moment_id"]; isOneToOne: false; referencedRelation: "couple_moments"; referencedColumns: ["id"] }]
       }
       chat_messages: {
@@ -53,9 +53,9 @@ export type Database = {
         Relationships: []
       }
       couple_moments: {
-        Row: { category: string | null; created_at: string | null; created_by: string | null; description: string | null; external_url: string | null; home_id: string; id: string; status: string | null; target_date: string | null; title: string; updated_at: string | null }
-        Insert: { category?: string | null; created_at?: string | null; created_by?: string | null; description?: string | null; external_url?: string | null; home_id: string; id?: string; status?: string | null; target_date?: string | null; title: string; updated_at?: string | null }
-        Update: { category?: string | null; created_at?: string | null; created_by?: string | null; description?: string | null; external_url?: string | null; home_id?: string; id?: string; status?: string | null; target_date?: string | null; title?: string; updated_at?: string | null }
+        Row: { category: string | null; created_at: string | null; created_by: string | null; description: string | null; external_url: string | null; map_url: string | null; home_id: string; id: string; status: string | null; target_date: string | null; title: string; updated_at: string | null }
+        Insert: { category?: string | null; created_at?: string | null; created_by?: string | null; description?: string | null; external_url?: string | null; map_url?: string | null; home_id: string; id?: string; status?: string | null; target_date?: string | null; title: string; updated_at?: string | null }
+        Update: { category?: string | null; created_at?: string | null; created_by?: string | null; description?: string | null; external_url?: string | null; map_url?: string | null; home_id?: string; id?: string; status?: string | null; target_date?: string | null; title?: string; updated_at?: string | null }
         Relationships: []
       }
       finances: {
