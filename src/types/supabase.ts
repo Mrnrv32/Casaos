@@ -59,9 +59,9 @@ export type Database = {
         Relationships: []
       }
       finances: {
-        Row: { amount: number; category: string | null; created_at: string | null; created_by: string | null; deleted_at: string | null; due_date: string | null; home_id: string; id: string; is_paid: boolean | null; recurring_expense_id: string | null; title: string; type: string; updated_at: string | null }
-        Insert: { amount: number; category?: string | null; created_at?: string | null; created_by?: string | null; deleted_at?: string | null; due_date?: string | null; home_id: string; id?: string; is_paid?: boolean | null; recurring_expense_id?: string | null; title: string; type: string; updated_at?: string | null }
-        Update: { amount?: number; category?: string | null; created_at?: string | null; created_by?: string | null; deleted_at?: string | null; due_date?: string | null; home_id?: string; id?: string; is_paid?: boolean | null; recurring_expense_id?: string | null; title?: string; type?: string; updated_at?: string | null }
+        Row: { amount: number; category: string | null; created_at: string | null; created_by: string | null; deleted_at: string | null; due_date: string | null; home_id: string; id: string; is_paid: boolean | null; partner_share: number | null; recurring_expense_id: string | null; scope: string; split_settled: boolean | null; title: string; type: string; updated_at: string | null }
+        Insert: { amount: number; category?: string | null; created_at?: string | null; created_by?: string | null; deleted_at?: string | null; due_date?: string | null; home_id: string; id?: string; is_paid?: boolean | null; partner_share?: number | null; recurring_expense_id?: string | null; scope?: string; split_settled?: boolean | null; title: string; type: string; updated_at?: string | null }
+        Update: { amount?: number; category?: string | null; created_at?: string | null; created_by?: string | null; deleted_at?: string | null; due_date?: string | null; home_id?: string; id?: string; is_paid?: boolean | null; partner_share?: number | null; recurring_expense_id?: string | null; scope?: string; split_settled?: boolean | null; title?: string; type?: string; updated_at?: string | null }
         Relationships: []
       }
       home_invitations: {
@@ -119,9 +119,9 @@ export type Database = {
         Relationships: []
       }
       recurring_expenses: {
-        Row: { amount: number; category: string | null; created_at: string | null; created_by: string | null; home_id: string; id: string; is_active: boolean | null; recurrence_day: number | null; title: string }
-        Insert: { amount: number; category?: string | null; created_at?: string | null; created_by?: string | null; home_id: string; id?: string; is_active?: boolean | null; recurrence_day?: number | null; title: string }
-        Update: { amount?: number; category?: string | null; created_at?: string | null; created_by?: string | null; home_id?: string; id?: string; is_active?: boolean | null; recurrence_day?: number | null; title?: string }
+        Row: { amount: number; category: string | null; created_at: string | null; created_by: string | null; home_id: string; id: string; is_active: boolean | null; paid_by: string | null; recurrence_day: number | null; title: string }
+        Insert: { amount: number; category?: string | null; created_at?: string | null; created_by?: string | null; home_id: string; id?: string; is_active?: boolean | null; paid_by?: string | null; recurrence_day?: number | null; title: string }
+        Update: { amount?: number; category?: string | null; created_at?: string | null; created_by?: string | null; home_id?: string; id?: string; is_active?: boolean | null; paid_by?: string | null; recurrence_day?: number | null; title?: string }
         Relationships: []
       }
       savings_goals: {
