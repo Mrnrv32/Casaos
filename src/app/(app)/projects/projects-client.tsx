@@ -804,7 +804,7 @@ function MilestoneRow({
       >
         {done && <span className="block w-2 h-2 rounded-sm bg-emerald-400" />}
       </button>
-      <span className={cn("flex-1 text-sm transition-colors", done ? "line-through text-white/25" : "text-white/70")}>
+      <span className={cn("flex-1 text-xs transition-colors", done ? "line-through text-white/25" : "text-white/70")}>
         {milestone.title}
       </span>
       {milestone.cost != null && milestone.cost > 0 && (
