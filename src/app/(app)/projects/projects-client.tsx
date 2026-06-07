@@ -812,13 +812,13 @@ function MilestoneRow({
       )}
       <button
         onClick={() => setEditing(true)}
-        className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-white/20 active:text-amber-400 transition-all flex-shrink-0"
+        className="w-5 h-5 flex items-center justify-center text-white/30 active:text-amber-400 transition-all flex-shrink-0"
       >
         <Pencil className="w-3 h-3" />
       </button>
       <button
         onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center text-white/20 active:text-red-400 transition-all flex-shrink-0"
+        className="w-5 h-5 flex items-center justify-center text-white/30 active:text-red-400 transition-all flex-shrink-0"
       >
         <X className="w-3 h-3" />
       </button>
