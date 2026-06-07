@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +22,11 @@ export default function LoginPage() {
 
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName.trim() } },
+        });
         if (error) throw error;
         router.push("/board");
         router.refresh();
@@ -75,6 +80,20 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {mode === "signup" && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-white/50 font-medium">Nombre completo</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Tu nombre"
+                required
+                autoComplete="name"
+                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-400/40"
+              />
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-white/50 font-medium">Correo electrónico</label>
             <input
