@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, LogOut, Pencil, UserPlus, X } from "lucide-react";
+import { Bell, BellRing, Check, Copy, LogOut, Pencil, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useHome } from "@/providers/home-provider";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 function initials(name: string) {
   return name
@@ -124,6 +125,8 @@ export function SettingsClient() {
     },
     onError: () => toast.error("Error al cancelar invitación"),
   });
+
+  const push = usePushNotifications();
 
   const signOut = useMutation({
     mutationFn: async () => {
@@ -332,6 +335,64 @@ export function SettingsClient() {
                   </button>
                 </div>
               </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Notificaciones */}
+      <section className="space-y-2">
+        <p className="text-[11px] font-semibold text-white/40 uppercase tracking-widest px-1">
+          Notificaciones
+        </p>
+        <div className="bg-[#1a1a1a] rounded-2xl border border-white/[0.06] px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center flex-shrink-0">
+                {push.status === "on" ? (
+                  <BellRing size={16} className="text-amber-400" />
+                ) : (
+                  <Bell size={16} className="text-white/40" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white font-medium">Push en este dispositivo</p>
+                <p className="text-xs text-white/40 mt-0.5">
+                  {push.status === "on" && "Te avisaremos aunque la app esté cerrada"}
+                  {push.status === "off" && "Entérate cuando tu pareja agregue algo"}
+                  {push.status === "loading" && "Verificando…"}
+                  {push.status === "no-sw" &&
+                    (push.needsInstall
+                      ? "Primero instala la app: Compartir → Agregar a inicio"
+                      : "Disponible en la app instalada (producción)")}
+                  {push.status === "denied" && "Bloqueadas — habilítalas en los ajustes del navegador"}
+                  {push.status === "unsupported" && "Tu navegador no soporta notificaciones push"}
+                </p>
+              </div>
+            </div>
+            {(push.status === "on" || push.status === "off") && (
+              <button
+                disabled={push.busy}
+                onClick={async () => {
+                  if (push.status === "on") {
+                    await push.disable();
+                    toast.success("Push desactivado");
+                  } else {
+                    const ok = await push.enable();
+                    if (ok) toast.success("Push activado en este dispositivo");
+                    else toast.error("No se pudo activar");
+                  }
+                }}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 disabled:opacity-40 ${
+                  push.status === "on" ? "bg-amber-400" : "bg-white/10"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
+                    push.status === "on" ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
             )}
           </div>
         </div>

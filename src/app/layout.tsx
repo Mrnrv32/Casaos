@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   title: "CasaOS",
   description: "Tu sistema operativo del hogar",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

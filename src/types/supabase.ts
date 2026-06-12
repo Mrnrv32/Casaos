@@ -112,6 +112,12 @@ export type Database = {
         Update: { created_at?: string | null; created_by?: string | null; description?: string | null; home_id?: string; id?: string; status?: string | null; title?: string; total_budget?: number | null; updated_at?: string | null }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: { auth: string; created_at: string | null; endpoint: string; home_id: string; id: string; p256dh: string; user_agent: string | null; user_id: string }
+        Insert: { auth: string; created_at?: string | null; endpoint: string; home_id: string; id?: string; p256dh: string; user_agent?: string | null; user_id: string }
+        Update: { auth?: string; created_at?: string | null; endpoint?: string; home_id?: string; id?: string; p256dh?: string; user_agent?: string | null; user_id?: string }
+        Relationships: [{ foreignKeyName: "push_subscriptions_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] }, { foreignKeyName: "push_subscriptions_home_id_fkey"; columns: ["home_id"]; isOneToOne: false; referencedRelation: "homes"; referencedColumns: ["id"] }]
+      }
       recipes: {
         Row: { category: string | null; created_at: string | null; created_by: string | null; description: string | null; home_id: string; id: string; ingredients: Json | null; title: string; updated_at: string | null }
         Insert: { category?: string | null; created_at?: string | null; created_by?: string | null; description?: string | null; home_id: string; id?: string; ingredients?: Json | null; title: string; updated_at?: string | null }
