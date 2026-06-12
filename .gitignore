@@ -33,6 +33,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# serwist (generado en build)
+/public/sw.js
+/public/sw.js.map
+/public/swe-worker*
+
 # vercel
 .vercel
 
