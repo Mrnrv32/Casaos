@@ -97,6 +97,7 @@ export function CalendarClient() {
   const [moMapUrl, setMoMapUrl] = useState("");
   const [selectedMomento, setSelectedMomento] = useState<CoupleMoment | null>(null);
   const [lastShuffleId, setLastShuffleId] = useState<string | null>(null);
+  const [schedulingMomento, setSchedulingMomento] = useState<CoupleMoment | null>(null);
 
   // ── Event detail / edit state ──
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -248,12 +249,25 @@ export function CalendarClient() {
         is_all_day: evIsAllDay,
         tag: evTag || null,
         link_url: evLinkUrl.trim() || null,
+        moment_id: schedulingMomento?.id ?? null,
       });
       if (error) throw error;
+      if (schedulingMomento) {
+        const { error: moError } = await supabase
+          .from("couple_moments")
+          .update({ status: "scheduled", target_date: evDate })
+          .eq("id", schedulingMomento.id);
+        if (moError) throw moError;
+      }
     },
     onSuccess: () => {
+      const wasScheduling = !!schedulingMomento;
       resetEventForm();
       queryClient.invalidateQueries({ queryKey: ["calendar_events", homeId] });
+      if (wasScheduling) {
+        queryClient.invalidateQueries({ queryKey: ["couple_moments", homeId] });
+        toast.success("Momento agendado");
+      }
     },
     onError: (e) => { if (e.message !== "invalid_times") toast.error("No se pudo agregar el evento"); },
   });
@@ -356,6 +370,19 @@ export function CalendarClient() {
     setEvTitle(""); setEvTime(""); setEvEndTime(""); setEvIsAllDay(true); setEvTag(""); setEvLinkUrl("");
     setShowEventForm(false);
     setEditingEvent(null);
+    setSchedulingMomento(null);
+  }
+
+  function openScheduleMomento(m: CoupleMoment) {
+    setSelectedMomento(null);
+    setEvTitle(m.title);
+    setEvDate(selectedDay);
+    setEvIsAllDay(true);
+    setEvTime(""); setEvEndTime("");
+    setEvTag("Momento");
+    setEvLinkUrl(m.external_url ?? "");
+    setSchedulingMomento(m);
+    setShowEventForm(true);
   }
 
   function resetMomentoForm() {
@@ -396,9 +423,11 @@ export function CalendarClient() {
       return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
     })();
 
-    const toUtcStamp = (iso: string) => {
+    // Hora local "flotante" (sin Z): el calendario la interpreta en la
+    // zona horaria del dispositivo, igual que se ve en la app
+    const toLocalStamp = (iso: string) => {
       const d = new Date(iso);
-      return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
     };
 
     let dtstart: string;
@@ -407,8 +436,8 @@ export function CalendarClient() {
       const date = ev.start_at.slice(0, 10).replace(/-/g, "");
       dtstart = `DTSTART;VALUE=DATE:${date}`;
     } else {
-      dtstart = `DTSTART:${toUtcStamp(ev.start_at)}`;
-      if (ev.end_at) dtend = `DTEND:${toUtcStamp(ev.end_at)}`;
+      dtstart = `DTSTART:${toLocalStamp(ev.start_at)}`;
+      if (ev.end_at) dtend = `DTEND:${toLocalStamp(ev.end_at)}`;
     }
 
     const lines = [
@@ -693,7 +722,7 @@ export function CalendarClient() {
               <div className="w-9 h-1 rounded-full bg-white/[0.15] self-center" />
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-white">
-                  {editingEvent ? "Editar evento" : "Nuevo evento"}
+                  {editingEvent ? "Editar evento" : schedulingMomento ? "Agendar momento" : "Nuevo evento"}
                 </h3>
                 <button
                   onClick={resetEventForm}
@@ -869,6 +898,14 @@ export function CalendarClient() {
                 )}
               </div>
             )}
+
+            <button
+              onClick={() => openScheduleMomento(selectedMomento)}
+              className="flex items-center justify-center gap-2 bg-amber-400/15 border border-amber-400/25 rounded-xl py-3 text-sm text-amber-400/90 active:bg-amber-400/25 transition-colors"
+            >
+              <CalendarDays className="w-4 h-4" />
+              Agendar en calendario
+            </button>
 
             <button
               onClick={() => { pinMomentoToBoard.mutate(selectedMomento); setSelectedMomento(null); }}
