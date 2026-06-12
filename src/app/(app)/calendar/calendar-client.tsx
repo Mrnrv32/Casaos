@@ -229,10 +229,8 @@ export function CalendarClient() {
     let end: Date | null = null;
     if (evEndTime) {
       end = new Date(`${evDate}T${evEndTime}:00`);
-      if (end <= start) {
-        toast.error("La hora de fin debe ser después del inicio");
-        return null;
-      }
+      // Fin "antes" del inicio = el evento cruza la medianoche (termina al día siguiente)
+      if (end <= start) end.setDate(end.getDate() + 1);
     }
     return { start_at: start.toISOString(), end_at: end ? end.toISOString() : null };
   }
@@ -724,7 +722,7 @@ export function CalendarClient() {
                   type="date"
                   value={evDate}
                   onChange={(e) => setEvDate(e.target.value)}
-                  className="flex-1 bg-white/[0.06] rounded-xl px-4 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                  className="flex-1 min-w-0 appearance-none bg-white/[0.06] rounded-xl px-4 h-12 text-white text-sm outline-none [color-scheme:dark]"
                 />
                 <button
                   onClick={() => setEvIsAllDay((v) => !v)}
@@ -743,22 +741,22 @@ export function CalendarClient() {
             {/* Start / end time */}
             {!evIsAllDay && (
               <div className="flex gap-2.5">
-                <div className="flex-1 flex flex-col gap-2.5">
+                <div className="flex-1 min-w-0 flex flex-col gap-2.5">
                   <label className="text-[11px] uppercase tracking-widest text-white/30">Inicio</label>
                   <input
                     type="time"
                     value={evTime}
                     onChange={(e) => setEvTime(e.target.value)}
-                    className="w-full bg-white/[0.06] rounded-xl px-4 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                    className="w-full min-w-0 appearance-none bg-white/[0.06] rounded-xl px-4 h-12 text-white text-sm outline-none [color-scheme:dark]"
                   />
                 </div>
-                <div className="flex-1 flex flex-col gap-2.5">
+                <div className="flex-1 min-w-0 flex flex-col gap-2.5">
                   <label className="text-[11px] uppercase tracking-widest text-white/30">Fin</label>
                   <input
                     type="time"
                     value={evEndTime}
                     onChange={(e) => setEvEndTime(e.target.value)}
-                    className="w-full bg-white/[0.06] rounded-xl px-4 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                    className="w-full min-w-0 appearance-none bg-white/[0.06] rounded-xl px-4 h-12 text-white text-sm outline-none [color-scheme:dark]"
                   />
                 </div>
               </div>

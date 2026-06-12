@@ -38,6 +38,25 @@ select {
   font-size: 16px !important;
 }
 
+/* iOS Safari: native date/time inputs have intrinsic size that overflows
+   flex containers and ignores height/width — normalize them */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+
 /* iOS: safe area for fixed bottom elements */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
