@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useHome } from "@/providers/home-provider";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
+import { NotificationsBell } from "@/components/notifications-bell";
 import { cn } from "@/lib/utils";
 import type { BoardCard, Chore, ChoreRecurrence } from "@/types/supabase";
 
@@ -402,6 +403,7 @@ export function BoardClient() {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
+          <NotificationsBell />
           <Link
             href="/settings"
             className="w-9 h-9 rounded-full flex items-center justify-center bg-white/[0.06] text-white/60 active:bg-white/[0.10] transition-colors"

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { HomeProvider } from "@/providers/home-provider";
 import { BottomNav } from "@/components/bottom-nav";
 import { NavigationProgress } from "@/components/nav-progress";
+import { NotificationsListener } from "@/components/notifications-listener";
 
 export default async function AppLayout({
   children,
@@ -46,6 +47,7 @@ export default async function AppLayout({
       avatarUrl={profile.avatar_url ?? null}
       homeName={home?.name ?? ""}
     >
+      <NotificationsListener />
       <div
         className="flex flex-col bg-[#0f0f0f]"
         style={{ height: "100dvh", maxWidth: "440px", margin: "0 auto" }}
