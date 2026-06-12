@@ -84,6 +84,7 @@ export function CalendarClient() {
   const [evTitle, setEvTitle] = useState("");
   const [evDate, setEvDate] = useState(todayStr);
   const [evTime, setEvTime] = useState("");
+  const [evEndTime, setEvEndTime] = useState("");
   const [evIsAllDay, setEvIsAllDay] = useState(true);
   const [evTag, setEvTag] = useState<CalendarTag | "">("");
   const [evLinkUrl, setEvLinkUrl] = useState("");
@@ -222,16 +223,30 @@ export function CalendarClient() {
     onError: () => toast.error("No se pudo agregar al tablero"),
   });
 
+  function buildEventTimes() {
+    if (evIsAllDay) return { start_at: `${evDate}T00:00:00`, end_at: null };
+    const start = new Date(`${evDate}T${evTime || "09:00"}:00`);
+    let end: Date | null = null;
+    if (evEndTime) {
+      end = new Date(`${evDate}T${evEndTime}:00`);
+      if (end <= start) {
+        toast.error("La hora de fin debe ser después del inicio");
+        return null;
+      }
+    }
+    return { start_at: start.toISOString(), end_at: end ? end.toISOString() : null };
+  }
+
   const addEvent = useMutation({
     mutationFn: async () => {
-      const startAt = evIsAllDay
-        ? `${evDate}T00:00:00`
-        : new Date(`${evDate}T${evTime || "09:00"}:00`).toISOString();
+      const times = buildEventTimes();
+      if (!times) throw new Error("invalid_times");
       const { error } = await supabase.from("calendar_events").insert({
         title: evTitle.trim(),
         home_id: homeId,
         created_by: userId,
-        start_at: startAt,
+        start_at: times.start_at,
+        end_at: times.end_at,
         is_all_day: evIsAllDay,
         tag: evTag || null,
         link_url: evLinkUrl.trim() || null,
@@ -242,7 +257,7 @@ export function CalendarClient() {
       resetEventForm();
       queryClient.invalidateQueries({ queryKey: ["calendar_events", homeId] });
     },
-    onError: () => toast.error("No se pudo agregar el evento"),
+    onError: (e) => { if (e.message !== "invalid_times") toast.error("No se pudo agregar el evento"); },
   });
 
   const addMomento = useMutation({
@@ -291,10 +306,12 @@ export function CalendarClient() {
 
   const updateEvent = useMutation({
     mutationFn: async (id: string) => {
-      const startAt = evIsAllDay ? `${evDate}T00:00:00` : new Date(`${evDate}T${evTime || "09:00"}:00`).toISOString();
+      const times = buildEventTimes();
+      if (!times) throw new Error("invalid_times");
       const { error } = await supabase.from("calendar_events").update({
         title: evTitle.trim(),
-        start_at: startAt,
+        start_at: times.start_at,
+        end_at: times.end_at,
         is_all_day: evIsAllDay,
         tag: evTag || null,
         link_url: evLinkUrl.trim() || null,
@@ -305,7 +322,7 @@ export function CalendarClient() {
       resetEventForm();
       queryClient.invalidateQueries({ queryKey: ["calendar_events", homeId] });
     },
-    onError: () => toast.error("No se pudo actualizar"),
+    onError: (e) => { if (e.message !== "invalid_times") toast.error("No se pudo actualizar"); },
   });
 
   const updateMomento = useMutation({
@@ -338,7 +355,7 @@ export function CalendarClient() {
   }
 
   function resetEventForm() {
-    setEvTitle(""); setEvTime(""); setEvIsAllDay(true); setEvTag(""); setEvLinkUrl("");
+    setEvTitle(""); setEvTime(""); setEvEndTime(""); setEvIsAllDay(true); setEvTag(""); setEvLinkUrl("");
     setShowEventForm(false);
     setEditingEvent(null);
   }
@@ -354,11 +371,12 @@ export function CalendarClient() {
     setEvTitle(ev.title);
     setEvDate(evLocalDateStr(ev));
     setEvIsAllDay(ev.is_all_day ?? true);
-    const localTime = (() => {
-      const d = new Date(ev.start_at);
+    const toLocalTime = (iso: string) => {
+      const d = new Date(iso);
       return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    })();
-    setEvTime(ev.is_all_day ? "" : localTime);
+    };
+    setEvTime(ev.is_all_day ? "" : toLocalTime(ev.start_at));
+    setEvEndTime(ev.is_all_day || !ev.end_at ? "" : toLocalTime(ev.end_at));
     setEvTag((ev.tag as CalendarTag) ?? "");
     setEvLinkUrl(ev.link_url ?? "");
     setEditingEvent(ev);
@@ -380,13 +398,19 @@ export function CalendarClient() {
       return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
     })();
 
+    const toUtcStamp = (iso: string) => {
+      const d = new Date(iso);
+      return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+    };
+
     let dtstart: string;
+    let dtend: string | null = null;
     if (ev.is_all_day) {
       const date = ev.start_at.slice(0, 10).replace(/-/g, "");
       dtstart = `DTSTART;VALUE=DATE:${date}`;
     } else {
-      const d = new Date(ev.start_at);
-      dtstart = `DTSTART:${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+      dtstart = `DTSTART:${toUtcStamp(ev.start_at)}`;
+      if (ev.end_at) dtend = `DTEND:${toUtcStamp(ev.end_at)}`;
     }
 
     const lines = [
@@ -397,6 +421,7 @@ export function CalendarClient() {
       `UID:${ev.id}@casaos`,
       `DTSTAMP:${nowUtc}`,
       dtstart,
+      dtend,
       `SUMMARY:${ev.title}`,
       ev.description ? `DESCRIPTION:${ev.description}` : null,
       ev.link_url ? `URL:${ev.link_url}` : null,
@@ -440,83 +465,6 @@ export function CalendarClient() {
             <Plus className={cn("w-5 h-5 transition-transform duration-200", showEventForm && "rotate-45")} />
           </button>
         </div>
-
-        {/* Event add / edit form */}
-        {(showEventForm || editingEvent) && (
-          <div className="mb-4 bg-[#1a1a1a] rounded-xl border border-white/[0.06] p-3 flex flex-col gap-3">
-            <input
-              autoFocus
-              type="text"
-              value={evTitle}
-              onChange={(e) => setEvTitle(e.target.value)}
-              placeholder="Nombre del evento…"
-              className="w-full bg-transparent text-white text-sm placeholder:text-white/25 outline-none"
-            />
-            <div className="flex items-center gap-3">
-              <input
-                type="date"
-                value={evDate}
-                onChange={(e) => setEvDate(e.target.value)}
-                className="flex-1 bg-transparent text-white text-sm outline-none [color-scheme:dark]"
-              />
-              <button
-                onClick={() => setEvIsAllDay((v) => !v)}
-                className={cn(
-                  "text-[11px] px-2.5 py-1 rounded-full border transition-colors shrink-0",
-                  evIsAllDay
-                    ? "bg-amber-400/20 border-amber-400/40 text-amber-400"
-                    : "bg-transparent border-white/[0.10] text-white/40"
-                )}
-              >
-                Todo el día
-              </button>
-            </div>
-            {!evIsAllDay && (
-              <input
-                type="time"
-                value={evTime}
-                onChange={(e) => setEvTime(e.target.value)}
-                className="w-full bg-white/[0.06] rounded-xl px-3 py-2.5 text-white text-sm outline-none [color-scheme:dark]"
-              />
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {TAGS.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setEvTag(evTag === tag ? "" : tag)}
-                  className={cn(
-                    "text-[11px] px-2.5 py-1 rounded-full border transition-colors",
-                    evTag === tag ? TAG_COLORS[tag] : "bg-transparent border-white/[0.10] text-white/40"
-                  )}
-                >
-                  {TAG_LABELS[tag]}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 border-t border-white/[0.06] pt-2.5">
-              <ExternalLink className="w-3.5 h-3.5 text-white/20 shrink-0" />
-              <input
-                type="url"
-                value={evLinkUrl}
-                onChange={(e) => setEvLinkUrl(e.target.value)}
-                placeholder="Link (Meet, reservación, web…)"
-                className="flex-1 bg-transparent text-white/70 text-xs placeholder:text-white/20 outline-none"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-1 border-t border-white/[0.06]">
-              <button onClick={resetEventForm} className="text-xs text-white/40 px-3 py-1.5 active:text-white/60">
-                Cancelar
-              </button>
-              <button
-                disabled={!evTitle.trim() || !evDate || addEvent.isPending || updateEvent.isPending}
-                onClick={() => editingEvent ? updateEvent.mutate(editingEvent.id) : addEvent.mutate()}
-                className="text-xs bg-amber-400 text-black font-semibold px-4 py-1.5 rounded-lg disabled:opacity-40 active:opacity-80"
-              >
-                {(addEvent.isPending || updateEvent.isPending) ? "Guardando…" : editingEvent ? "Guardar" : "Agregar"}
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Week strip */}
         <div className="mb-3">
@@ -737,6 +685,136 @@ export function CalendarClient() {
         </div>
       </div>
 
+      {/* ══════════ OVERLAY — Event add / edit sheet ══════════ */}
+      {(showEventForm || editingEvent) && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/70" onClick={resetEventForm} />
+          <div className="relative bg-[#1c1c1c] rounded-t-3xl w-full max-w-[440px] px-5 pt-5 pb-8 flex flex-col gap-5 shadow-2xl border-t border-white/[0.08] max-h-[90dvh] overflow-y-auto">
+            {/* Handle + header */}
+            <div className="flex flex-col gap-4">
+              <div className="w-9 h-1 rounded-full bg-white/[0.15] self-center" />
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-white">
+                  {editingEvent ? "Editar evento" : "Nuevo evento"}
+                </h3>
+                <button
+                  onClick={resetEventForm}
+                  className="w-8 h-8 flex items-center justify-center text-white/30 active:text-white/60 rounded-lg"
+                >
+                  <X className="w-4.5 h-4.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Title */}
+            <input
+              autoFocus={!editingEvent}
+              type="text"
+              value={evTitle}
+              onChange={(e) => setEvTitle(e.target.value)}
+              placeholder="Nombre del evento…"
+              className="w-full bg-white/[0.06] rounded-xl px-4 py-3.5 text-white text-base placeholder:text-white/25 outline-none focus:bg-white/[0.09] transition-colors"
+            />
+
+            {/* Date + all day */}
+            <div className="flex flex-col gap-2.5">
+              <label className="text-[11px] uppercase tracking-widest text-white/30">Fecha</label>
+              <div className="flex items-center gap-2.5">
+                <input
+                  type="date"
+                  value={evDate}
+                  onChange={(e) => setEvDate(e.target.value)}
+                  className="flex-1 bg-white/[0.06] rounded-xl px-4 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                />
+                <button
+                  onClick={() => setEvIsAllDay((v) => !v)}
+                  className={cn(
+                    "text-xs px-3.5 py-3 rounded-xl border transition-colors shrink-0 font-medium",
+                    evIsAllDay
+                      ? "bg-amber-400/20 border-amber-400/40 text-amber-400"
+                      : "bg-transparent border-white/[0.10] text-white/40"
+                  )}
+                >
+                  Todo el día
+                </button>
+              </div>
+            </div>
+
+            {/* Start / end time */}
+            {!evIsAllDay && (
+              <div className="flex gap-2.5">
+                <div className="flex-1 flex flex-col gap-2.5">
+                  <label className="text-[11px] uppercase tracking-widest text-white/30">Inicio</label>
+                  <input
+                    type="time"
+                    value={evTime}
+                    onChange={(e) => setEvTime(e.target.value)}
+                    className="w-full bg-white/[0.06] rounded-xl px-4 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                  />
+                </div>
+                <div className="flex-1 flex flex-col gap-2.5">
+                  <label className="text-[11px] uppercase tracking-widest text-white/30">Fin</label>
+                  <input
+                    type="time"
+                    value={evEndTime}
+                    onChange={(e) => setEvEndTime(e.target.value)}
+                    className="w-full bg-white/[0.06] rounded-xl px-4 py-3 text-white text-sm outline-none [color-scheme:dark]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Tags */}
+            <div className="flex flex-col gap-2.5">
+              <label className="text-[11px] uppercase tracking-widest text-white/30">Etiqueta</label>
+              <div className="flex flex-wrap gap-2">
+                {TAGS.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setEvTag(evTag === tag ? "" : tag)}
+                    className={cn(
+                      "text-xs px-3.5 py-2 rounded-full border transition-colors font-medium",
+                      evTag === tag ? TAG_COLORS[tag] : "bg-transparent border-white/[0.10] text-white/40"
+                    )}
+                  >
+                    {TAG_LABELS[tag]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Link */}
+            <div className="flex items-center gap-3 bg-white/[0.06] rounded-xl px-4 py-3">
+              <ExternalLink className="w-4 h-4 text-white/25 shrink-0" />
+              <input
+                type="url"
+                value={evLinkUrl}
+                onChange={(e) => setEvLinkUrl(e.target.value)}
+                placeholder="Link (Meet, reservación, web…)"
+                className="flex-1 bg-transparent text-white/70 text-sm placeholder:text-white/25 outline-none"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2.5 pt-1">
+              <button
+                onClick={resetEventForm}
+                className="flex-1 text-sm text-white/45 py-3.5 rounded-xl border border-white/[0.10] active:text-white/70 active:bg-white/[0.04] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={!evTitle.trim() || !evDate || addEvent.isPending || updateEvent.isPending}
+                onClick={() => editingEvent ? updateEvent.mutate(editingEvent.id) : addEvent.mutate()}
+                className="flex-[2] text-sm bg-amber-400 text-black font-semibold py-3.5 rounded-xl disabled:opacity-40 active:opacity-80 transition-opacity"
+              >
+                {(addEvent.isPending || updateEvent.isPending) ? "Guardando…" : editingEvent ? "Guardar cambios" : "Agregar evento"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══════════ OVERLAY — Momento detail ══════════ */}
       {selectedMomento && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
@@ -839,7 +917,7 @@ export function CalendarClient() {
                   {new Date(`${selectedEvent.start_at.slice(0, 10)}T12:00:00`).toLocaleDateString("es-MX", {
                     weekday: "long", day: "numeric", month: "long",
                   })}
-                  {!selectedEvent.is_all_day && ` · ${formatTime(selectedEvent.start_at)}`}
+                  {!selectedEvent.is_all_day && ` · ${formatTime(selectedEvent.start_at)}${selectedEvent.end_at ? `–${formatTime(selectedEvent.end_at)}` : ""}`}
                   {selectedEvent.is_all_day && " · Todo el día"}
                 </p>
               </div>
