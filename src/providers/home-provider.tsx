@@ -10,6 +10,7 @@ interface HomeContextValue {
   setFullName: (name: string) => void;
   avatarUrl: string | null;
   homeName: string;
+  role: string | null;
 }
 
 const HomeContext = createContext<HomeContextValue | null>(null);
@@ -21,6 +22,7 @@ interface HomeProviderProps {
   initialFullName: string;
   avatarUrl: string | null;
   homeName: string;
+  role: string | null;
   children: React.ReactNode;
 }
 
@@ -31,13 +33,14 @@ export function HomeProvider({
   initialFullName,
   avatarUrl,
   homeName,
+  role,
   children,
 }: HomeProviderProps) {
   const [fullName, setFullName] = useState(initialFullName);
 
   const value = useMemo<HomeContextValue>(
-    () => ({ homeId, userId, userEmail, fullName, setFullName, avatarUrl, homeName }),
-    [homeId, userId, userEmail, fullName, avatarUrl, homeName]
+    () => ({ homeId, userId, userEmail, fullName, setFullName, avatarUrl, homeName, role }),
+    [homeId, userId, userEmail, fullName, avatarUrl, homeName, role]
   );
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>;

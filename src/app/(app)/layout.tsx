@@ -46,6 +46,7 @@ export default async function AppLayout({
       initialFullName={profile.full_name}
       avatarUrl={profile.avatar_url ?? null}
       homeName={home?.name ?? ""}
+      role={profile.role ?? null}
     >
       <NotificationsListener />
       <div

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, BellRing, Check, Copy, LogOut, Pencil, UserPlus, X } from "lucide-react";
+import { Bell, BellRing, Check, Copy, LogOut, Pencil, UserMinus, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -19,7 +19,7 @@ function initials(name: string) {
 }
 
 export function SettingsClient() {
-  const { homeId, userId, userEmail, fullName, setFullName, homeName } = useHome();
+  const { homeId, userId, userEmail, fullName, setFullName, homeName, role } = useHome();
   const supabase = createClient();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -31,13 +31,14 @@ export function SettingsClient() {
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [confirmRemovePartner, setConfirmRemovePartner] = useState(false);
 
   const { data: partner } = useQuery({
     queryKey: ["partner", homeId, userId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("id, full_name")
         .eq("home_id", homeId)
         .neq("id", userId)
         .maybeSingle();
@@ -124,6 +125,19 @@ export function SettingsClient() {
       toast.success("Invitación cancelada");
     },
     onError: () => toast.error("Error al cancelar invitación"),
+  });
+
+  const removePartner = useMutation({
+    mutationFn: async (targetId: string) => {
+      const { error } = await supabase.rpc("remove_home_member", { target_id: targetId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setConfirmRemovePartner(false);
+      queryClient.invalidateQueries({ queryKey: ["partner", homeId, userId] });
+      toast.success("Pareja eliminada del hogar");
+    },
+    onError: () => toast.error("No se pudo eliminar"),
   });
 
   const push = usePushNotifications();
@@ -283,6 +297,15 @@ export function SettingsClient() {
                     </span>
                   </div>
                   <span className="text-white text-sm">{partner.full_name}</span>
+                  {role === "admin" && (
+                    <button
+                      className="p-1.5 text-white/25 hover:text-red-400 active:text-red-400"
+                      onClick={() => setConfirmRemovePartner(true)}
+                      title="Eliminar del hogar"
+                    >
+                      <UserMinus size={14} />
+                    </button>
+                  )}
                 </div>
               ) : (
                 <button
@@ -418,6 +441,41 @@ export function SettingsClient() {
       </section>
 
       <p className="text-center text-[11px] text-white/15 pt-2">CasaOS v1.0</p>
+
+      {/* Remove partner confirm overlay */}
+      {confirmRemovePartner && partner && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm"
+          onClick={() => setConfirmRemovePartner(false)}
+        >
+          <div
+            className="w-full max-w-[360px] bg-[#1c1c1c] rounded-2xl p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-white font-semibold text-base">¿Eliminar a {partner.full_name}?</h3>
+            <p className="text-sm text-white/50 leading-relaxed">
+              Perderá el acceso a este hogar y a todos sus datos. Lo que ya
+              agregó (eventos, gastos, tareas…) se conserva. Después podrás
+              invitar a otra persona.
+            </p>
+            <div className="flex gap-3">
+              <button
+                className="flex-1 py-3 rounded-xl bg-white/5 text-white/60 text-sm"
+                onClick={() => setConfirmRemovePartner(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold text-sm disabled:opacity-40"
+                onClick={() => removePartner.mutate(partner.id)}
+                disabled={removePartner.isPending}
+              >
+                {removePartner.isPending ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invite overlay */}
       {showInviteForm && (

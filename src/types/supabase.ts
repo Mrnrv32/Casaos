@@ -146,6 +146,7 @@ export type Database = {
       get_my_home_id: { Args: never; Returns: string }
       get_my_pending_invite_token: { Args: never; Returns: string }
       notify_partner: { Args: { p_body?: string; p_data?: Json; p_entity_id?: string; p_entity_type?: string; p_kind: string; p_link?: string; p_title: string }; Returns: string }
+      remove_home_member: { Args: { target_id: string }; Returns: undefined }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }
