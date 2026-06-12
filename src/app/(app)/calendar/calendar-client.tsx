@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Pin, ChevronLeft, ChevronRight,
-  Shuffle, ExternalLink, MapPin, X, Trash2, Pencil,
+  Shuffle, ExternalLink, MapPin, X, Trash2, Pencil, CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -371,6 +371,46 @@ export function CalendarClient() {
     setMoExternalUrl(m.external_url ?? "");
     setMoMapUrl(m.map_url ?? "");
     setEditingMomento(m);
+  }
+
+  function exportToIcs(ev: CalendarEvent) {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const nowUtc = (() => {
+      const d = new Date();
+      return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+    })();
+
+    let dtstart: string;
+    if (ev.is_all_day) {
+      const date = ev.start_at.slice(0, 10).replace(/-/g, "");
+      dtstart = `DTSTART;VALUE=DATE:${date}`;
+    } else {
+      const d = new Date(ev.start_at);
+      dtstart = `DTSTART:${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+    }
+
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//CasaOS//CasaOS//ES",
+      "BEGIN:VEVENT",
+      `UID:${ev.id}@casaos`,
+      `DTSTAMP:${nowUtc}`,
+      dtstart,
+      `SUMMARY:${ev.title}`,
+      ev.description ? `DESCRIPTION:${ev.description}` : null,
+      ev.link_url ? `URL:${ev.link_url}` : null,
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].filter(Boolean).join("\r\n");
+
+    const blob = new Blob([lines], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${ev.title.replace(/[^a-z0-9]/gi, "_")}.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -835,14 +875,23 @@ export function CalendarClient() {
               </a>
             )}
 
-            <button
-              onClick={() => { pinToBoard.mutate(selectedEvent); setSelectedEvent(null); }}
-              disabled={pinToBoard.isPending}
-              className="flex items-center justify-center gap-2 bg-white/[0.06] rounded-xl py-3 text-sm text-white/60 active:bg-white/[0.10] transition-colors disabled:opacity-40"
-            >
-              <Pin className="w-4 h-4" />
-              Agregar al tablero
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { pinToBoard.mutate(selectedEvent); setSelectedEvent(null); }}
+                disabled={pinToBoard.isPending}
+                className="flex-1 flex items-center justify-center gap-2 bg-white/[0.06] rounded-xl py-3 text-sm text-white/60 active:bg-white/[0.10] transition-colors disabled:opacity-40"
+              >
+                <Pin className="w-4 h-4" />
+                Al tablero
+              </button>
+              <button
+                onClick={() => exportToIcs(selectedEvent)}
+                className="flex-1 flex items-center justify-center gap-2 bg-white/[0.06] rounded-xl py-3 text-sm text-white/60 active:bg-white/[0.10] transition-colors"
+              >
+                <CalendarDays className="w-4 h-4" />
+                Exportar
+              </button>
+            </div>
 
             <div className="flex gap-2 pt-1 border-t border-white/[0.06]">
               <button
