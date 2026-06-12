@@ -59,6 +59,12 @@ function formatTime(start_at: string): string {
   });
 }
 
+function evLocalDateStr(ev: CalendarEvent): string {
+  if (ev.is_all_day) return ev.start_at.slice(0, 10);
+  const d = new Date(ev.start_at);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function CalendarClient() {
   const { homeId, userId } = useHome();
   const supabase = createClient();
@@ -167,12 +173,12 @@ export function CalendarClient() {
   // ── Computed ──
   const daysWithEvents = useMemo(() => {
     const s = new Set<string>();
-    for (const ev of events) s.add(ev.start_at.slice(0, 10));
+    for (const ev of events) s.add(evLocalDateStr(ev));
     return s;
   }, [events]);
 
   const dayEvents = useMemo(
-    () => events.filter((ev) => ev.start_at.slice(0, 10) === selectedDay),
+    () => events.filter((ev) => evLocalDateStr(ev) === selectedDay),
     [events, selectedDay]
   );
 
@@ -220,7 +226,7 @@ export function CalendarClient() {
     mutationFn: async () => {
       const startAt = evIsAllDay
         ? `${evDate}T00:00:00`
-        : `${evDate}T${evTime || "09:00"}:00`;
+        : new Date(`${evDate}T${evTime || "09:00"}:00`).toISOString();
       const { error } = await supabase.from("calendar_events").insert({
         title: evTitle.trim(),
         home_id: homeId,
@@ -285,7 +291,7 @@ export function CalendarClient() {
 
   const updateEvent = useMutation({
     mutationFn: async (id: string) => {
-      const startAt = evIsAllDay ? `${evDate}T00:00:00` : `${evDate}T${evTime || "09:00"}:00`;
+      const startAt = evIsAllDay ? `${evDate}T00:00:00` : new Date(`${evDate}T${evTime || "09:00"}:00`).toISOString();
       const { error } = await supabase.from("calendar_events").update({
         title: evTitle.trim(),
         start_at: startAt,
@@ -346,9 +352,13 @@ export function CalendarClient() {
   function openEditEvent(ev: CalendarEvent) {
     setSelectedEvent(null);
     setEvTitle(ev.title);
-    setEvDate(ev.start_at.slice(0, 10));
+    setEvDate(evLocalDateStr(ev));
     setEvIsAllDay(ev.is_all_day ?? true);
-    setEvTime(ev.is_all_day ? "" : ev.start_at.slice(11, 16));
+    const localTime = (() => {
+      const d = new Date(ev.start_at);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    })();
+    setEvTime(ev.is_all_day ? "" : localTime);
     setEvTag((ev.tag as CalendarTag) ?? "");
     setEvLinkUrl(ev.link_url ?? "");
     setEditingEvent(ev);
@@ -426,7 +436,7 @@ export function CalendarClient() {
                 type="time"
                 value={evTime}
                 onChange={(e) => setEvTime(e.target.value)}
-                className="bg-transparent text-white text-sm outline-none [color-scheme:dark]"
+                className="w-full bg-white/[0.06] rounded-xl px-3 py-2.5 text-white text-sm outline-none [color-scheme:dark]"
               />
             )}
             <div className="flex flex-wrap gap-1.5">

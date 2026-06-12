@@ -317,9 +317,11 @@ export function FinancesClient() {
       const amount = parseFloat(txAmount.replace(",", "."));
       if (!txTitle.trim() || isNaN(amount)) throw new Error("invalid");
       const partnerShareVal = showSplit && txPartnerShare ? parseFloat(txPartnerShare.replace(",", ".")) : null;
+      const now = new Date();
+      const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       const { error } = await supabase.from("finances").insert({
         title: txTitle.trim(), amount, type: txType,
-        category: txCategory || null, due_date: txDueDate || null,
+        category: txCategory || null, due_date: txDueDate || todayLocal,
         is_paid: txIsPaid, home_id: homeId, created_by: userId,
         scope: txScope, partner_share: partnerShareVal, split_settled: false,
       });
