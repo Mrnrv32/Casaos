@@ -381,7 +381,7 @@ export function FinancesClient() {
       if (!recTitle.trim() || isNaN(amount)) throw new Error("invalid");
       const { error } = await supabase.from("recurring_expenses").insert({
         title: recTitle.trim(), amount, category: recCategory || null,
-        recurrence_day: parseInt(recDay, 10), is_active: true,
+        recurrence_day: Math.min(Math.max(parseInt(recDay, 10) || 1, 1), 31), is_active: true,
         home_id: homeId, created_by: userId, paid_by: recPaidBy,
       });
       if (error) throw error;
@@ -397,7 +397,7 @@ export function FinancesClient() {
       if (!recTitle.trim() || isNaN(amount)) throw new Error("invalid");
       const { error } = await supabase.from("recurring_expenses").update({
         title: recTitle.trim(), amount, category: recCategory || null,
-        recurrence_day: parseInt(recDay, 10), paid_by: recPaidBy,
+        recurrence_day: Math.min(Math.max(parseInt(recDay, 10) || 1, 1), 31), paid_by: recPaidBy,
       }).eq("id", editRec.id);
       if (error) throw error;
     },
@@ -473,7 +473,8 @@ export function FinancesClient() {
 
   const markRecurringPaid = useMutation({
     mutationFn: async (r: RecurringExpense) => {
-      const day = String(Math.min(r.recurrence_day ?? 1, 28)).padStart(2, "0");
+      const daysInViewMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const day = String(Math.min(r.recurrence_day ?? 1, daysInViewMonth)).padStart(2, "0");
       const { error } = await supabase.from("finances").insert({
         title: r.title, amount: r.amount, type: "expense",
         category: r.category ?? null, is_paid: true, recurring_expense_id: r.id,
@@ -1340,7 +1341,7 @@ export function FinancesClient() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-white/40 shrink-0">Día del mes:</span>
-            <input type="number" min="1" max="28" value={recDay} onChange={e => setRecDay(e.target.value)}
+            <input type="number" min="1" max="31" value={recDay} onChange={e => setRecDay(e.target.value)}
               className="w-16 bg-white/[0.06] rounded-xl px-3 py-2 text-sm text-white outline-none text-center" />
           </div>
           {/* Who pays */}
